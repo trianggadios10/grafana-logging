@@ -1,0 +1,484 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+  labels:
+    app: grafana
+data:
+  go-api-observability.json: |
+    {
+      "annotations": {"list": []},
+      "description": "Comprehensive observability dashboard - combining metrics, logs, and traces",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "gridPos": {"h": 2, "w": 24, "x": 0, "y": 0},
+          "id": 100,
+          "options": {
+            "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+            "content": "<h1 style=\"margin: 0; padding: 5px;\">Service Observability Dashboard</h1>",
+            "mode": "html"
+          },
+          "type": "text"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 2},
+          "id": 1,
+          "panels": [],
+          "title": "RED Metrics (Rate, Errors, Duration)",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "description": "RED metrics overview per endpoint",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "custom": {"align": "right", "cellOptions": {"type": "color-text"}, "filterable": true, "inspect": false},
+              "decimals": 2,
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.5}, {"color": "orange", "value": 3}, {"color": "red", "value": 5}]},
+              "unit": "s"
+            },
+            "overrides": [
+              {"matcher": {"id": "byName", "options": "tps"}, "properties": [{"id": "unit", "value": "reqps"}, {"id": "custom.cellOptions", "value": {"type": "auto"}}]},
+              {"matcher": {"id": "byName", "options": "requests"}, "properties": [{"id": "unit", "value": "short"}, {"id": "custom.cellOptions", "value": {"type": "auto"}}, {"id": "custom.width", "value": 100}]},
+              {"matcher": {"id": "byName", "options": "success-rate"}, "properties": [{"id": "unit", "value": "percent"}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "orange", "value": 50}, {"color": "yellow", "value": 80}, {"color": "green", "value": 95}]}}, {"id": "max", "value": 100}, {"id": "custom.cellOptions", "value": {"mode": "gradient", "type": "color-background"}}]},
+              {"matcher": {"id": "byName", "options": "endpoint"}, "properties": [{"id": "custom.cellOptions", "value": {"type": "auto"}}, {"id": "custom.width", "value": 200}]}
+            ]
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 3},
+          "id": 2,
+          "options": {"cellHeight": "sm", "footer": {"countRows": false, "enablePagination": true, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true, "sortBy": []},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "sum by(path)(rate(http_request_duration_seconds_count{job=~\"$service\"}[$__range]))", "format": "table", "instant": true, "legendFormat": "__auto", "refId": "tps"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "sum by(path)(increase(http_request_duration_seconds_sum{job=~\"$service\"}[$__range])) / sum by(path)(increase(http_request_duration_seconds_count{job=~\"$service\"}[$__range]))", "format": "table", "instant": true, "refId": "avg"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=~\"$service\"}[$__range])) by(path, le))", "format": "table", "instant": true, "refId": "p95"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "sum by(path)(increase(http_request_duration_seconds_count{job=~\"$service\"}[$__range]))", "format": "table", "instant": true, "refId": "requests"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "(sum by(path)(http_requests_total{job=~\"$service\", status=~\"2..\"}) or (0 * group by(path)(http_requests_total{job=~\"$service\"}))) / sum by(path)(http_requests_total{job=~\"$service\"}) * 100", "format": "table", "instant": true, "refId": "success-rate"}
+          ],
+          "title": "Performance Metrics by Endpoint",
+          "transformations": [
+            {"id": "joinByField", "options": {"byField": "path", "mode": "outer"}},
+            {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true, "Time 5": true}, "renameByName": {"Value #avg": "average", "Value #p95": "p95", "Value #requests": "requests", "Value #success-rate": "success-rate", "Value #tps": "tps", "path": "endpoint"}}}
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "description": "Transactions per second by endpoint",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 0, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "reqps"
+            }
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 3},
+          "id": 3,
+          "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "sum by(path)(rate(http_request_duration_seconds_count{job=~\"$service\"}[$__rate_interval]))", "legendFormat": "{{path}}", "refId": "A"}],
+          "title": "Request Rate (TPS) by Endpoint",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "description": "Response time percentiles (P99, P90, P50, AVG)",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 0, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"log": 10, "type": "log"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}},
+              "mappings": [],
+              "min": 0,
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "s"
+            }
+          },
+          "gridPos": {"h": 6, "w": 8, "x": 0, "y": 11},
+          "id": 4,
+          "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=~\"$service\"}[$__rate_interval])) by(le))", "legendFormat": "P99", "refId": "P99"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{job=~\"$service\"}[$__rate_interval])) by(le))", "legendFormat": "P90", "refId": "P90"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=~\"$service\"}[$__rate_interval])) by(le))", "legendFormat": "P50", "refId": "P50"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "sum(rate(http_request_duration_seconds_sum{job=~\"$service\"}[$__rate_interval])) / sum(rate(http_request_duration_seconds_count{job=~\"$service\"}[$__rate_interval]))", "legendFormat": "AVG", "refId": "AVG"}
+          ],
+          "title": "Response Time (Duration)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "description": "5xx error rate percentage",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"fixedColor": "red", "mode": "fixed"},
+              "custom": {"axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "axisSoftMax": 100, "axisSoftMin": 0, "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}},
+              "mappings": [],
+              "noValue": "0%",
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "percent"
+            }
+          },
+          "gridPos": {"h": 6, "w": 8, "x": 8, "y": 11},
+          "id": 5,
+          "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "(sum(rate(http_requests_total{job=~\"$service\", status=~\"5..\"}[$__rate_interval])) / sum(rate(http_requests_total{job=~\"$service\"}[$__rate_interval]))) * 100 or vector(0)", "legendFormat": "5xx Error Rate", "refId": "A"}],
+          "title": "Error Rate (5xx %)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "description": "Current requests being processed",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "insertNulls": false, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            }
+          },
+          "gridPos": {"h": 6, "w": 8, "x": 16, "y": 11},
+          "id": 6,
+          "options": {"legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "http_requests_in_flight{job=~\"$service\"}", "legendFormat": "In Flight", "refId": "A"}],
+          "title": "Requests In Flight",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "description": "Response time distribution buckets",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "decimals": 0,
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            },
+            "overrides": [{"matcher": {"id": "byName", "options": "+Inf"}, "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]}]
+          },
+          "gridPos": {"h": 6, "w": 12, "x": 0, "y": 17},
+          "id": 7,
+          "options": {"displayMode": "gradient", "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false}, "maxVizHeight": 300, "minVizHeight": 75, "minVizWidth": 16, "namePlacement": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": false, "sizing": "manual", "valueMode": "text"},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "sum by(le)(increase(http_request_duration_seconds_bucket{job=~\"$service\"}[$__range]))", "format": "heatmap", "instant": true, "legendFormat": "__auto", "refId": "A"}],
+          "title": "Response Time Distribution (seconds)",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {"type": "tempo", "uid": "tempo"},
+          "description": "Service dependency graph from traces",
+          "gridPos": {"h": 10, "w": 12, "x": 12, "y": 17},
+          "id": 8,
+          "options": {"edges": {}, "layoutAlgorithm": "layered", "nodes": {}, "zoomMode": "cooperative"},
+          "targets": [{"datasource": {"type": "tempo", "uid": "tempo"}, "limit": 20, "query": "", "queryType": "serviceMap", "refId": "A", "serviceMapQuery": "{}", "tableType": "traces"}],
+          "title": "Service Map",
+          "type": "nodeGraph"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+          "id": 10,
+          "panels": [],
+          "title": "HTTP Operations Detail",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "description": "Detailed HTTP operations with method and status",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "filterable": true, "inspect": false},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+            },
+            "overrides": [
+              {"matcher": {"id": "byName", "options": "Rate"}, "properties": [{"id": "unit", "value": "reqps"}, {"id": "custom.cellOptions", "value": {"mode": "gradient", "type": "gauge"}}]},
+              {"matcher": {"id": "byName", "options": "Duration (P99)"}, "properties": [{"id": "unit", "value": "s"}, {"id": "custom.cellOptions", "value": {"mode": "gradient", "type": "gauge"}}]},
+              {"matcher": {"id": "byName", "options": "Error %"}, "properties": [{"id": "unit", "value": "percent"}, {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}}, {"id": "custom.cellOptions", "value": {"mode": "gradient", "type": "color-background"}}]}
+            ]
+          },
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+          "id": 11,
+          "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true, "sortBy": [{"desc": true, "displayName": "Rate"}]},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "sum by(method, path, status)(rate(http_requests_total{job=~\"$service\"}[$__rate_interval]))", "format": "table", "instant": true, "refId": "Rate"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "histogram_quantile(0.99, sum by(method, path, le)(rate(http_request_duration_seconds_bucket{job=~\"$service\"}[$__rate_interval])))", "format": "table", "instant": true, "refId": "Duration"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "expr": "(sum by(method, path)(increase(http_requests_total{job=~\"$service\", status=~\"5..\"}[$__range])) or (0 * group by(method, path)(http_requests_total{job=~\"$service\"}))) / sum by(method, path)(increase(http_requests_total{job=~\"$service\"}[$__range])) * 100", "format": "table", "instant": true, "refId": "ErrorPct"}
+          ],
+          "title": "HTTP Operations (Inbound)",
+          "transformations": [
+            {"id": "joinByField", "options": {"byField": "path", "mode": "outer"}},
+            {"id": "organize", "options": {"excludeByName": {"Time 1": true, "Time 2": true, "Time 3": true, "method 2": true, "method 3": true}, "renameByName": {"Value #Duration": "Duration (P99)", "Value #ErrorPct": "Error %", "Value #Rate": "Rate", "method 1": "Method", "path": "Endpoint", "status": "Status"}}}
+          ],
+          "type": "table"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32},
+          "id": 20,
+          "panels": [],
+          "title": "Runtime Metrics",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 80}]},
+              "unit": "percent"
+            }
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 33},
+          "id": 21,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(process_cpu_seconds_total{job=~\"$service\"}[5m]) * 100", "legendFormat": "CPU", "refId": "A"}],
+          "title": "CPU",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 536870912}, {"color": "red", "value": 1073741824}]},
+              "unit": "bytes"
+            }
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 33},
+          "id": 22,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "process_resident_memory_bytes{job=~\"$service\"}", "legendFormat": "Memory", "refId": "A"}],
+          "title": "Memory",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 100}]}
+            }
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 33},
+          "id": 23,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_goroutines{job=~\"$service\"}", "legendFormat": "Goroutines", "refId": "A"}],
+          "title": "Goroutines",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "short"
+            }
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 12, "y": 33},
+          "id": 24,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_threads{job=~\"$service\"}", "legendFormat": "Threads", "refId": "A"}],
+          "title": "OS Threads",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "bytes"
+            }
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 16, "y": 33},
+          "id": 25,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_memstats_heap_alloc_bytes{job=~\"$service\"}", "legendFormat": "Heap", "refId": "A"}],
+          "title": "Heap Alloc",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "s"
+            }
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 20, "y": 33},
+          "id": 26,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(go_gc_duration_seconds_sum{job=~\"$service\"}[5m])", "legendFormat": "GC Time", "refId": "A"}],
+          "title": "GC Time/s",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "unit": "bytes"
+            }
+          },
+          "gridPos": {"h": 6, "w": 12, "x": 0, "y": 37},
+          "id": 27,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "process_resident_memory_bytes{job=~\"$service\"}", "legendFormat": "RSS", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_memstats_heap_alloc_bytes{job=~\"$service\"}", "legendFormat": "Heap Alloc", "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_memstats_stack_inuse_bytes{job=~\"$service\"}", "legendFormat": "Stack", "refId": "C"}
+          ],
+          "title": "Memory Over Time",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+            }
+          },
+          "gridPos": {"h": 6, "w": 12, "x": 12, "y": 37},
+          "id": 28,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_goroutines{job=~\"$service\"}", "legendFormat": "Goroutines", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "go_threads{job=~\"$service\"}", "legendFormat": "OS Threads", "refId": "B"}
+          ],
+          "title": "Goroutines & Threads Over Time",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 43},
+          "id": 30,
+          "panels": [],
+          "title": "Logs",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "description": "Application logs with trace correlation. Click on a log line to see details and trace_id links.",
+          "gridPos": {"h": 12, "w": 24, "x": 0, "y": 44},
+          "id": 31,
+          "options": {"dedupStrategy": "none", "enableInfiniteScrolling": true, "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": true, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
+          "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "editorMode": "code", "expr": "{app=~\"$service\"} | json | line_format \"{{.log}}\" | json", "queryType": "range", "refId": "A"}],
+          "title": "Application Logs",
+          "type": "logs"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 56},
+          "id": 40,
+          "panels": [],
+          "title": "Traces",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "tempo", "uid": "tempo"},
+          "description": "Recent traces from the service. Click on a trace to view the full trace details.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+            },
+            "overrides": [
+              {"matcher": {"id": "byName", "options": "Trace Service"}, "properties": [{"id": "custom.hidden", "value": true}]},
+              {"matcher": {"id": "byName", "options": "Duration"}, "properties": [{"id": "unit", "value": "ns"}]}
+            ]
+          },
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 57},
+          "id": 41,
+          "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+          "targets": [{"datasource": {"type": "tempo", "uid": "tempo"}, "limit": 20, "queryType": "traceql", "query": "{}", "refId": "A", "tableType": "traces"}],
+          "title": "Recent Traces",
+          "type": "table"
+        },
+        {
+          "gridPos": {"h": 4, "w": 24, "x": 0, "y": 67},
+          "id": 42,
+          "options": {
+            "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+            "content": "### Trace Search Examples\n\nUse [Grafana Explore](/explore?orgId=1&left=%7B%22datasource%22:%22tempo%22%7D) to search traces with TraceQL:\n\n| Query | Description |\n|-------|-------------|\n| `{resource.service.name=~\"$service\"}` | All traces from selected service |\n| `{resource.service.name=~\"$service\" && status=error}` | Error traces only |\n| `{resource.service.name=~\"$service\" && duration>100ms}` | Slow traces (>100ms) |\n| `{resource.service.name=~\"$service\" && span.http.route=\"/api/users\"}` | Traces for specific endpoint |",
+            "mode": "markdown"
+          },
+          "type": "text"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "tags": ["observability", "RED", "otel"],
+      "templating": {
+        "list": [
+          {
+            "current": {},
+            "datasource": {"type": "prometheus", "uid": "prometheus"},
+            "definition": "label_values(http_requests_total, job)",
+            "description": "Select service to monitor",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Service",
+            "multi": true,
+            "name": "service",
+            "options": [],
+            "query": {"qryType": 1, "query": "label_values(http_requests_total, job)", "refId": "PrometheusVariableQueryEditor-VariableQuery"},
+            "refresh": 2,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          },
+          {
+            "current": {},
+            "datasource": {"type": "loki", "uid": "loki"},
+            "definition": "label_values(namespace)",
+            "description": "Kubernetes namespace",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Namespace",
+            "multi": true,
+            "name": "namespace",
+            "options": [],
+            "query": {"qryType": 1, "query": "label_values(namespace)", "refId": "LokiVariableQueryEditor-VariableQuery"},
+            "refresh": 2,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-15m", "to": "now"},
+      "timepicker": {},
+      "timezone": "",
+      "title": "Go API Observability",
+      "uid": "go-api-observability",
+      "version": 1
+    }

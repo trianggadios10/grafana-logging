@@ -1,0 +1,131 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: monitoring
+  labels:
+    app: grafana
+data:
+  grafana.ini: |
+    [server]
+    root_url = %(protocol)s://%(domain)s:%(http_port)s/
+
+    [analytics]
+    check_for_updates = false
+    reporting_enabled = false
+
+    [log]
+    mode = console
+    level = info
+
+    [auth.anonymous]
+    enabled = true
+    org_role = Viewer
+
+    [security]
+    admin_user = admin
+    admin_password = admin
+
+    [users]
+    allow_sign_up = false
+
+    [explore]
+    enabled = true
+
+    [feature_toggles]
+    enable = traceqlEditor
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+  labels:
+    app: grafana
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+        uid: prometheus
+        jsonData:
+          timeInterval: "15s"
+          exemplarTraceIdDestinations:
+            - name: trace_id
+              datasourceUid: tempo
+
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+        editable: false
+        uid: loki
+        jsonData:
+          maxLines: 1000
+          derivedFields:
+            - name: TraceID
+              matcherRegex: '"trace_id":"([a-f0-9]+)"'
+              url: ''
+              datasourceUid: tempo
+              urlDisplayLabel: 'View Trace'
+
+      - name: Tempo
+        type: tempo
+        access: proxy
+        url: http://tempo:3200
+        editable: false
+        uid: tempo
+        jsonData:
+          httpMethod: GET
+          tracesToLogs:
+            datasourceUid: loki
+            filterByTraceID: true
+            filterBySpanID: false
+            mapTagNamesEnabled: true
+            mappedTags:
+              - key: service.name
+                value: app
+            spanStartTimeShift: '-1h'
+            spanEndTimeShift: '1h'
+          tracesToMetrics:
+            datasourceUid: prometheus
+            spanStartTimeShift: '-1h'
+            spanEndTimeShift: '1h'
+            tags:
+              - key: service.name
+                value: app
+            queries:
+              - name: 'Request rate'
+                query: 'sum(rate(http_requests_total{app="$${__tags.service.name}"}[5m]))'
+          serviceMap:
+            datasourceUid: prometheus
+          nodeGraph:
+            enabled: true
+          lokiSearch:
+            datasourceUid: loki
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: monitoring
+  labels:
+    app: grafana
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards

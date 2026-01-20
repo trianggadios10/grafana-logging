@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  namespace: monitoring
+  labels:
+    app: tempo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tempo
+  template:
+    metadata:
+      labels:
+        app: tempo
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3200"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.3.1
+          args:
+            - "-config.file=/etc/tempo/tempo.yaml"
+          ports:
+            - containerPort: 3200
+              name: http
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+            - containerPort: 9095
+              name: grpc
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo
+            - name: storage
+              mountPath: /var/tempo
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 3200
+            initialDelaySeconds: 45
+            timeoutSeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3200
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: tempo-config
+        - name: storage
+          persistentVolumeClaim:
+            claimName: tempo-storage
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tempo-storage
+  namespace: monitoring
+  labels:
+    app: tempo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo
+  namespace: monitoring
+  labels:
+    app: tempo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3200
+      targetPort: 3200
+      name: http
+    - port: 4317
+      targetPort: 4317
+      name: otlp-grpc
+    - port: 4318
+      targetPort: 4318
+      name: otlp-http
+    - port: 9095
+      targetPort: 9095
+      name: grpc
+  selector:
+    app: tempo

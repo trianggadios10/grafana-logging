@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alerting-rules
+  namespace: monitoring
+  labels:
+    app: prometheus
+data:
+  alerting-rules.yaml: |
+    groups:
+      - name: go-api-alerts
+        rules:
+          # High Error Rate
+          - alert: HighErrorRate
+            expr: |
+              sum(rate(http_requests_total{status=~"5.."}[5m]))
+              / sum(rate(http_requests_total[5m])) > 0.05
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "High error rate detected"
+              description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+          # High Latency
+          - alert: HighLatency
+            expr: |
+              histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High latency detected"
+              description: "P99 latency is {{ $value | humanizeDuration }} (threshold: 1s)"
+
+          # Panic Recovery
+          - alert: PanicRecovered
+            expr: |
+              increase(panic_recoveries_total[5m]) > 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Panic recovered in application"
+              description: "{{ $value }} panic(s) recovered in the last 5 minutes"
+
+          # Pod Down
+          - alert: PodDown
+            expr: |
+              up{job="go-api"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Go API pod is down"
+              description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is down"
+
+          # High Memory Usage
+          - alert: HighMemoryUsage
+            expr: |
+              container_memory_working_set_bytes{container="go-api"}
+              / container_spec_memory_limit_bytes{container="go-api"} > 0.85
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High memory usage"
+              description: "Memory usage is {{ $value | humanizePercentage }} of limit"
+
+          # High CPU Usage
+          - alert: HighCPUUsage
+            expr: |
+              rate(container_cpu_usage_seconds_total{container="go-api"}[5m])
+              / container_spec_cpu_quota{container="go-api"} * 100000 > 0.85
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High CPU usage"
+              description: "CPU usage is {{ $value | humanizePercentage }} of limit"
+
+      - name: infrastructure-alerts
+        rules:
+          # Prometheus Target Down
+          - alert: PrometheusTargetMissing
+            expr: up == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Prometheus target missing"
+              description: "Target {{ $labels.job }}/{{ $labels.instance }} is down"
+
+          # Loki Down
+          - alert: LokiDown
+            expr: up{job="loki"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Loki is down"
+              description: "Loki service is unavailable"
+
+          # Prometheus Storage Full
+          - alert: PrometheusStorageFull
+            expr: |
+              (prometheus_tsdb_storage_blocks_bytes / prometheus_tsdb_retention_limit_bytes) > 0.9
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Prometheus storage almost full"
+              description: "Prometheus storage is {{ $value | humanizePercentage }} full"
+
+          # High Log Volume
+          - alert: HighLogVolume
+            expr: |
+              sum(rate(loki_distributor_bytes_received_total[5m])) > 10485760
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High log ingestion rate"
+              description: "Log ingestion rate is {{ $value | humanize }}B/s"

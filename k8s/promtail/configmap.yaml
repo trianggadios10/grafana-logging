@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: monitoring
+  labels:
+    app: promtail
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+      log_level: info
+
+    positions:
+      filename: /run/promtail/positions.yaml
+
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+        tenant_id: ""
+        batchwait: 1s
+        batchsize: 1048576
+        timeout: 10s
+
+    scrape_configs:
+      # Scrape logs from all pods
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        pipeline_stages:
+          # First, parse container runtime log wrapper
+          # CRI/containerd logs: 2024-01-20T04:42:50Z stdout F {"level":"info",...}
+          - cri: {}
+          # Now parse the inner JSON from Go application
+          - json:
+              expressions:
+                level: level
+                msg: msg
+                time: time
+                path: path
+                method: method
+          # Only extract low-cardinality labels
+          # - level: few values (info, warn, error, debug)
+          # - path: limited endpoints (/api/hello, /api/error, etc.)
+          # - method: few values (GET, POST, PUT, DELETE)
+          # High-cardinality fields (trace_id, span_id) stay in log content
+          # Query them with: {app="go-api", path="/api/hello"} | json
+          - labels:
+              level:
+              path:
+              method:
+          # Add timestamp from parsed JSON
+          - timestamp:
+              source: time
+              format: RFC3339Nano
+        relabel_configs:
+          # Keep only logs from pods with logging enabled
+          - source_labels:
+              - __meta_kubernetes_pod_annotation_logging_enabled
+            action: keep
+            regex: "true"
+          # Get pod name
+          - source_labels:
+              - __meta_kubernetes_pod_name
+            target_label: pod
+          # Get namespace
+          - source_labels:
+              - __meta_kubernetes_namespace
+            target_label: namespace
+          # Get container name
+          - source_labels:
+              - __meta_kubernetes_pod_container_name
+            target_label: container
+          # Get app label
+          - source_labels:
+              - __meta_kubernetes_pod_label_app
+            target_label: app
+          # Get node name
+          - source_labels:
+              - __meta_kubernetes_pod_node_name
+            target_label: node
+          # Set the path to the container log
+          - replacement: /var/log/pods/*$1/*.log
+            separator: /
+            source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            target_label: __path__
+
+      # Scrape logs from all pods (fallback for non-JSON logs)
+      - job_name: kubernetes-pods-raw
+        kubernetes_sd_configs:
+          - role: pod
+        pipeline_stages:
+          - regex:
+              expression: '^(?P<timestamp>\S+)\s+(?P<level>\S+)\s+(?P<message>.*)$'
+          - labels:
+              level:
+          - timestamp:
+              source: timestamp
+              format: RFC3339Nano
+        relabel_configs:
+          # Keep only logs from pods without specific logging annotation
+          - source_labels:
+              - __meta_kubernetes_pod_annotation_logging_enabled
+            action: drop
+            regex: "true"
+          - source_labels:
+              - __meta_kubernetes_pod_name
+            target_label: pod
+          - source_labels:
+              - __meta_kubernetes_namespace
+            target_label: namespace
+          - source_labels:
+              - __meta_kubernetes_pod_container_name
+            target_label: container
+          - source_labels:
+              - __meta_kubernetes_pod_label_app
+            target_label: app
+          - replacement: /var/log/pods/*$1/*.log
+            separator: /
+            source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            target_label: __path__
