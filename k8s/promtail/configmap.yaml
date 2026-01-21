@@ -28,9 +28,16 @@ data:
         kubernetes_sd_configs:
           - role: pod
         pipeline_stages:
-          # First, parse container runtime log wrapper
-          # CRI/containerd logs: 2024-01-20T04:42:50Z stdout F {"level":"info",...}
-          - cri: {}
+          # Docker Desktop uses Docker JSON logging format, not CRI
+          # Docker JSON logs: {"log":"actual message\n","stream":"stdout","time":"..."}
+          - json:
+              expressions:
+                log: log
+                stream: stream
+                docker_time: time
+          # Extract the actual log content from Docker wrapper
+          - output:
+              source: log
           # Now parse the inner JSON from Go application
           - json:
               expressions:
@@ -87,18 +94,18 @@ data:
               - __meta_kubernetes_pod_container_name
             target_label: __path__
 
-      # Scrape logs from all pods (fallback for non-JSON logs)
+      # Scrape logs from all pods (fallback for non-JSON/non-annotated pods)
+      # Does NOT extract labels to prevent high cardinality from mismatched parsing
       - job_name: kubernetes-pods-raw
         kubernetes_sd_configs:
           - role: pod
         pipeline_stages:
-          - regex:
-              expression: '^(?P<timestamp>\S+)\s+(?P<level>\S+)\s+(?P<message>.*)$'
-          - labels:
-              level:
-          - timestamp:
-              source: timestamp
-              format: RFC3339Nano
+          # Docker Desktop uses Docker JSON logging format
+          - json:
+              expressions:
+                log: log
+          - output:
+              source: log
         relabel_configs:
           # Keep only logs from pods without specific logging annotation
           - source_labels:
