@@ -1,8 +1,5 @@
 # Grafana Observability Stack: Overview & Business Value
 
-> **Target pembaca:** Engineering Manager, Tech Lead
-> **Terakhir diperbarui:** April 2026
-
 ---
 
 ## 1. Apa Itu Observability Stack?
@@ -33,30 +30,33 @@ Stack ini dibangun di atas **Grafana ecosystem** yang merupakan standar industri
 
 ### Diagram Arsitektur
 
-```
-                        Kubernetes Cluster
- ┌───────────────────────────────────────────────────────┐
- │                                                       │
- │   ┌──────────┐    metrics     ┌────────────┐          │
- │   │  Go API  │ ──────────── >│ Prometheus │          │
- │   │  :8080   │                └─────┬──────┘          │
- │   └──┬───┬───┘                      │                 │
- │      │   │                          ↓                 │
- │      │   │  traces     ┌────────────────────┐         │
- │      │   └──────────> │      Tempo         │         │
- │      │     (OTLP)      └────────┬───────────┘         │
- │      │                          │                     │
- │      │ stdout                   ↓                     │
- │      ↓              ┌────────────────────┐            │
- │  ┌──────────┐       │     Grafana        │            │
- │  │ Promtail │       │  (Dashboard UI)    │            │
- │  └────┬─────┘       └────────────────────┘            │
- │       │                         ↑                     │
- │       ↓                         │                     │
- │  ┌──────────┐                   │                     │
- │  │   Loki   │───────────────────┘                     │
- │  └──────────┘                                         │
- └───────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph cluster["Kubernetes Cluster"]
+        API["Go API\n:8080"]
+
+        API -- "metrics\n(/metrics)" --> Prometheus
+        API -- "traces\n(OTLP gRPC :4317)" --> Tempo
+        API -- "stdout/stderr" --> Promtail
+        API -- "traced queries" --> PostgreSQL["PostgreSQL\n:5432"]
+
+        Promtail -- "push logs" --> Loki
+
+        Prometheus --> Grafana
+        Loki --> Grafana
+        Tempo --> Grafana
+        Tempo -- "service-graph &\nspan-metrics" --> Prometheus
+    end
+
+    Grafana["Grafana\n:3000\n(Dashboard UI)"]
+
+    style API fill:#2d6a4f,color:#fff
+    style Prometheus fill:#e6522c,color:#fff
+    style Loki fill:#f2a900,color:#000
+    style Tempo fill:#1a73e8,color:#fff
+    style Promtail fill:#f2a900,color:#000
+    style Grafana fill:#ff6600,color:#fff
+    style PostgreSQL fill:#336791,color:#fff
 ```
 
 ---

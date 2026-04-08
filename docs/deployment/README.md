@@ -1,8 +1,5 @@
 # Deployment Guide: Grafana Observability Stack
 
-> **Target pembaca:** DevOps Engineer, Infrastructure Engineer
-> **Terakhir diperbarui:** April 2026
-
 ---
 
 ## Daftar Isi
@@ -51,42 +48,41 @@
 
 ## 2. Arsitektur & Komponen
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Kubernetes Cluster                       │
-│                                                                 │
-│  Namespace: monitoring                                          │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                                                         │    │
-│  │  ┌────────────┐  scrape   ┌──────────────┐              │    │
-│  │  │ Prometheus │ <──────── │  Go API Pod  │              │    │
-│  │  │   :9090    │  /metrics │   :8080      │              │    │
-│  │  └─────┬──────┘           └──┬─────┬─────┘              │    │
-│  │        │                     │     │                     │    │
-│  │        │              traces │     │ stdout              │    │
-│  │        │              (OTLP) │     │                     │    │
-│  │        │                     ↓     ↓                     │    │
-│  │        │            ┌────────┐  ┌──────────┐            │    │
-│  │        │            │ Tempo  │  │ Promtail │            │    │
-│  │        │            │ :4317  │  │(DaemonSet)│           │    │
-│  │        │            └───┬────┘  └────┬─────┘            │    │
-│  │        │                │            │                   │    │
-│  │        ↓                ↓            ↓                   │    │
-│  │  ┌──────────────────────────────────────┐               │    │
-│  │  │            Grafana :3000             │               │    │
-│  │  │  Datasources: Prometheus,Loki,Tempo  │               │    │
-│  │  └──────────────────────────────────────┘               │    │
-│  │                                              ┌────────┐ │    │
-│  │                                              │  Loki  │ │    │
-│  │                                              │ :3100  │ │    │
-│  │                                              └────────┘ │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                                                                 │
-│  ┌──────────────┐                                               │
-│  │  PostgreSQL   │  ← traced queries dari Go API                │
-│  │    :5432      │                                               │
-│  └──────────────┘                                               │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph cluster["Kubernetes Cluster"]
+        subgraph monitoring["Namespace: monitoring"]
+            Prometheus["Prometheus\n:9090"]
+            Loki["Loki\n:3100"]
+            Tempo["Tempo\n:4317 / :3200"]
+            Promtail["Promtail\n(DaemonSet)"]
+            Grafana["Grafana\n:3000"]
+            PostgreSQL["PostgreSQL\n:5432"]
+        end
+
+        subgraph app["Namespace: app"]
+            API["Go API Pod\n:8080"]
+        end
+    end
+
+    API -- "scrape /metrics" --> Prometheus
+    API -- "traces (OTLP gRPC)" --> Tempo
+    API -- "stdout/stderr" --> Promtail
+    API -- "traced queries" --> PostgreSQL
+    Promtail -- "push logs" --> Loki
+    Tempo -- "service-graph &\nspan-metrics" --> Prometheus
+
+    Prometheus --> Grafana
+    Loki --> Grafana
+    Tempo --> Grafana
+
+    style API fill:#2d6a4f,color:#fff
+    style Prometheus fill:#e6522c,color:#fff
+    style Loki fill:#f2a900,color:#000
+    style Tempo fill:#1a73e8,color:#fff
+    style Promtail fill:#f2a900,color:#000
+    style Grafana fill:#ff6600,color:#fff
+    style PostgreSQL fill:#336791,color:#fff
 ```
 
 ### Komponen & Port
